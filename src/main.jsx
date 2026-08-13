@@ -10,6 +10,9 @@ const ROOMS = Array.from({ length: 5 }, (_, floor) =>
 ).flat();
 const STORAGE_KEY = "ktx-key-records-v3";
 const emptyPerson = { name: "", studentId: "", phone: "" };
+const actionName = (action) => action === "NHẬN" ? "nhận" : action === "MƯỢN" ? "mượn" : "giao";
+const actionStudent = (record) => record.action === "NHẬN" ? record.sender : record.receiver;
+const actionStatus = (record) => record.action === "NHẬN" ? "Đã nhận" : record.action === "GIAO" ? "Đã giao" : record.returnedAt ? "Đã trả" : "Đã mượn";
 
 function newForm(action = "NHẬN") {
   return { building: "B1", room: "101", action, quantity: 1, sender: { ...emptyPerson }, receiver: { ...emptyPerson }, note: "" };
@@ -30,8 +33,8 @@ function exportExcel(records) {
   };
   const headings = ["Thời gian", "Loại phiếu", "Tòa", "Phòng", "Số chìa", "Họ tên sinh viên", "MSSV", "Số điện thoại", "Ghi chú"];
   const rows = records.map((record) => {
-    const student = record.action === "NHẬN" ? record.sender : record.receiver;
-    return [new Date(record.createdAt).toLocaleString("vi-VN"), record.action === "NHẬN" ? "Nhận từ sinh viên" : "Giao cho sinh viên", record.building, record.room, Number(record.quantity) || 1, student?.name, student?.studentId, student?.phone, record.note];
+    const student = actionStudent(record);
+    return [new Date(record.createdAt).toLocaleString("vi-VN"), actionStatus(record), record.building, record.room, Number(record.quantity) || 1, student?.name, student?.studentId, student?.phone, record.note];
   });
   const csv = [headings, ...rows].map((row) => row.map(safe).join(";")).join("\r\n");
   const link = document.createElement("a");
@@ -54,56 +57,68 @@ function Home({ records, setRecords }) {
   const [message, setMessage] = useState("");
   const [query, setQuery] = useState("");
   const [building, setBuilding] = useState("Tất cả");
+  const [room, setRoom] = useState("Tất cả");
   const inventory = useMemo(() => calculateInventory(records), [records]);
   const available = [...inventory.values()].reduce((sum, value) => sum + value, 0);
   const delivered = records.reduce((sum, record) => sum + (record.action === "GIAO" ? Number(record.quantity) || 1 : 0), 0);
+  const borrowed = records.reduce((sum, record) => sum + (record.action === "MƯỢN" && !record.returnedAt ? Number(record.quantity) || 1 : 0), 0);
   const filtered = useMemo(() => records.filter((record) => {
-    const student = record.action === "NHẬN" ? record.sender : record.receiver;
+    const student = actionStudent(record);
     const text = `${record.building} ${record.room} ${student?.name || ""} ${student?.studentId || ""} ${student?.phone || ""}`.toLowerCase();
-    return (building === "Tất cả" || record.building === building) && text.includes(query.trim().toLowerCase());
-  }), [records, query, building]);
+    return (building === "Tất cả" || record.building === building) && (room === "Tất cả" || record.room === room) && text.includes(query.trim().toLowerCase());
+  }), [records, query, building, room]);
 
   function save(record) {
     setRecords((old) => [{ ...record, id: crypto.randomUUID(), createdAt: new Date().toISOString() }, ...old]);
     setAction(null);
-    setMessage(`Đã lưu phiếu ${record.action === "NHẬN" ? "nhận" : "giao"} chìa ${record.building}-${record.room}`);
+    setMessage(`Đã lưu phiếu ${actionName(record.action)} chìa ${record.building}-${record.room}`);
     setTimeout(() => setMessage(""), 3000);
   }
+  function returnBorrowed(id) { setRecords((old) => old.map((record) => record.id === id ? { ...record, returnedAt: new Date().toISOString(), returnedQuantity: Number(record.quantity) || 1 } : record)); }
 
   return <div className="app-shell">
     <TopBar />
     <main className="home-main">
       <section className="hero">
         <span className="eyebrow">KTX B · ĐẠI HỌC CẦN THƠ</span>
-        <h2>Giao nhận chìa khóa<br /><em>nhanh và rõ ràng.</em></h2>
-        <p>Chọn thao tác bên dưới để bắt đầu.</p>
+        <h2>Quản lý chìa khóa<br /><em>Ký túc xá B.</em></h2>
+        <p>Hệ thống giao nhận chìa khóa cho tân sinh viên KTX B.</p>
       </section>
 
       <section className="quick-actions" aria-label="Thao tác giao nhận">
         <button className="action-card receive" onClick={() => setAction("NHẬN")}>
-          <span className="action-icon"><ArrowDownToLine /></span><span><small>SINH VIÊN TRẢ CHÌA</small><strong>Nhận chìa</strong><em>Cộng chìa vào quầy</em></span><ArrowRight className="action-arrow" />
+          <span className="action-icon"><ArrowDownToLine /></span><span><small>SINH VIÊN GỬI CHÌA</small><strong>Nhận chìa</strong><em>Cộng chìa vào quầy</em></span><ArrowRight className="action-arrow" />
         </button>
         <button className="action-card deliver" onClick={() => setAction("GIAO")} disabled={!available}>
-          <span className="action-icon"><ArrowUpFromLine /></span><span><small>TRẢ CHÌA CHO SINH VIÊN</small><strong>Giao chìa</strong><em>{available ? "Trừ chìa khỏi quầy" : "Hiện chưa có chìa để giao"}</em></span><ArrowRight className="action-arrow" />
+          <span className="action-icon"><ArrowUpFromLine /></span><span><small>GIAO CHÌA CHO SINH VIÊN</small><strong>Giao chìa</strong><em>{available ? "Trừ chìa khỏi quầy" : "Hiện chưa có chìa để giao"}</em></span><ArrowRight className="action-arrow" />
+        </button>
+        <button className="action-card borrow" onClick={() => setAction("MƯỢN")} disabled={!available}>
+          <span className="action-icon"><KeyRound /></span><span><small>CHO SINH VIÊN MƯỢN</small><strong>Mượn chìa</strong><em>{available ? "Trừ chìa khỏi quầy" : "Hiện chưa có chìa để mượn"}</em></span><ArrowRight className="action-arrow" />
         </button>
       </section>
 
       <section className="metric-grid">
-        <Metric icon={<ArrowDownToLine />} value={available} label="Chìa đang nhận" tone="green" />
+        <Metric icon={<KeyRound />} value={available} label="Chìa tại quầy" tone="green" />
         <Metric icon={<ArrowUpFromLine />} value={delivered} label="Chìa đã giao" tone="amber" />
-        <Metric icon={<KeyRound />} value={available + delivered} label="Tổng số chìa" tone="blue" />
+        <Metric icon={<KeyRound />} value={borrowed} label="Lượt mượn chìa" tone="purple" />
+        <Metric icon={<FileKey />} value={records.length} label="Tổng số phiếu" tone="blue" />
       </section>
 
       <section className="recent-card">
         <div className="section-title"><div><span>HOẠT ĐỘNG MỚI</span><h3>Lịch sử giao nhận</h3></div><small>{filtered.length} phiếu</small></div>
         <div className="user-filters">
           <div className="search-field"><Search /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Tìm tên, MSSV, SĐT, phòng..." aria-label="Tìm phiếu giao nhận" /></div>
-          <select value={building} onChange={(e) => setBuilding(e.target.value)} aria-label="Lọc theo tòa"><option>Tất cả</option>{BUILDINGS.map((item) => <option key={item}>{item}</option>)}</select>
+          <select value={building} onChange={(e) => { setBuilding(e.target.value); setRoom("Tất cả"); }} aria-label="Lọc theo tòa"><option>Tất cả</option>{BUILDINGS.map((item) => <option key={item}>{item}</option>)}</select>
+          <select value={room} disabled={building === "Tất cả"} onChange={(e) => setRoom(e.target.value)} aria-label="Lọc theo phòng"><option value="Tất cả">{building === "Tất cả" ? "Chọn tòa trước" : "Tất cả phòng"}</option>{ROOMS.map((item) => <option key={item} value={item}>{item} · còn {inventory.get(`${building}-${item}`) || 0} chìa</option>)}</select>
         </div>
-        {filtered.length ? filtered.map((record) => <RecordCard key={record.id} record={record} />) : <Empty />}
+        {building !== "Tất cả" && room !== "Tất cả" && <div className="filter-stock"><KeyRound /><span>Phòng <strong>{building}-{room}</strong> hiện còn <strong>{inventory.get(`${building}-${room}`) || 0} chìa</strong> tại quầy</span></div>}
+        {filtered.length ? filtered.map((record) => <RecordCard key={record.id} record={record} roomStock={inventory.get(`${record.building}-${record.room}`) || 0} actions={record.action === "MƯỢN" && !record.returnedAt && <button className="return-borrowed" onClick={() => returnBorrowed(record.id)}><ArrowDownToLine /> Trả chìa đã mượn</button>} />) : <Empty />}
       </section>
     </main>
-    <footer>Dữ liệu lưu trên thiết bị này · KTX B Đại học Cần Thơ</footer>
+    <footer>
+      <strong>Chủ website: Đinh Tấn Đạt</strong>
+      <span>Có lỗi xảy ra, vui lòng liên hệ <a href="tel:0939358873">0939 358 873</a></span>
+    </footer>
     {action && <KeyModal action={action} inventory={inventory} onClose={() => setAction(null)} onSave={save} />}
     {message && <div className="toast" role="status">✓ {message}</div>}
   </div>;
@@ -111,7 +126,7 @@ function Home({ records, setRecords }) {
 
 function TopBar({ admin = false, onLogout, onMenu }) {
   return <header>
-    <a className="brand" href="/" aria-label="Trang chủ"><span className="brand-mark">K</span><span><strong>{admin ? "Quản trị chìa khóa" : "Giao nhận chìa khóa"}</strong><small>KTX B · Đại học Cần Thơ</small></span></a>
+    <a className="brand" href="/" aria-label="Trang chủ"><span className="brand-mark">CTU</span><span><strong>{admin ? "Quản trị chìa khóa" : "Giao nhận chìa khóa"}</strong><small>KTX B · ĐẠI HỌC CẦN THƠ</small></span></a>
     {admin && <div className="top-actions"><button className="menu-button" onClick={onMenu} aria-label="Mở menu"><Menu /></button><button className="header-button" onClick={onLogout}><LogOut /> Đăng xuất</button></div>}
   </header>;
 }
@@ -130,18 +145,19 @@ function KeyModal({ action, inventory, initial, onClose, onSave }) {
   function submit(event) {
     event.preventDefault();
     const quantity = Number(form.quantity);
-    if (form.action === "GIAO" && quantity > available && !initial) return setError(`Phòng này chỉ còn ${available} chìa.`);
+    if (form.action !== "NHẬN" && quantity > available && !initial) return setError(`Phòng này chỉ còn ${available} chìa.`);
     onSave({ ...form, quantity });
   }
 
   return <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-    <section className="key-modal" role="dialog" aria-modal="true" aria-label={`Phiếu ${action === "NHẬN" ? "nhận" : "giao"} chìa`}>
+    <section className="key-modal" role="dialog" aria-modal="true" aria-label={`Phiếu ${actionName(action)} chìa`}>
       <div className="modal-handle" />
-      <div className="modal-head"><div className={`modal-icon ${form.action === "NHẬN" ? "receive" : "deliver"}`}>{form.action === "NHẬN" ? <ArrowDownToLine /> : <ArrowUpFromLine />}</div><div><small>PHIẾU GIAO NHẬN</small><h3>{form.action === "NHẬN" ? "Nhận chìa từ sinh viên" : "Giao chìa cho sinh viên"}</h3></div><button className="close" type="button" onClick={onClose} aria-label="Đóng"><X /></button></div>
+      <div className="modal-head"><div className={`modal-icon ${form.action === "NHẬN" ? "receive" : form.action === "MƯỢN" ? "borrow" : "deliver"}`}>{form.action === "NHẬN" ? <ArrowDownToLine /> : form.action === "MƯỢN" ? <KeyRound /> : <ArrowUpFromLine />}</div><div><small>PHIẾU GIAO NHẬN</small><h3>{form.action === "NHẬN" ? "Nhận chìa từ sinh viên" : form.action === "MƯỢN" ? "Cho sinh viên mượn chìa" : "Giao chìa cho sinh viên"}</h3></div><button className="close" type="button" onClick={onClose} aria-label="Đóng"><X /></button></div>
       <form onSubmit={submit}>
         <div className="form-mode">
           <button type="button" className={form.action === "NHẬN" ? "active receive" : ""} onClick={() => setForm({ ...form, action: "NHẬN", sender: student })}>Nhận chìa</button>
           <button type="button" className={form.action === "GIAO" ? "active deliver" : ""} onClick={() => setForm({ ...form, action: "GIAO", receiver: student, quantity: 1 })}>Giao chìa</button>
+          <button type="button" className={form.action === "MƯỢN" ? "active borrow" : ""} onClick={() => setForm({ ...form, action: "MƯỢN", receiver: student, quantity: 1 })}>Mượn chìa</button>
         </div>
         <div className="location-fields">
           <label>Tòa<select value={form.building} onChange={(e) => setForm({ ...form, building: e.target.value })}>{BUILDINGS.map((item) => <option key={item}>{item}</option>)}</select></label>
@@ -153,21 +169,22 @@ function KeyModal({ action, inventory, initial, onClose, onSave }) {
           <legend>Thông tin sinh viên</legend>
           <label className="wide">Họ và tên<input required autoFocus value={student.name} onChange={(e) => setForm({ ...form, [role]: { ...student, name: e.target.value } })} placeholder="Nguyễn Văn A" /></label>
           <label>MSSV<input required value={student.studentId} onChange={(e) => setForm({ ...form, [role]: { ...student, studentId: e.target.value } })} placeholder="B2200000" /></label>
-          <label>Số điện thoại<input required type="tel" pattern="[0-9 +.-]{8,15}" value={student.phone} onChange={(e) => setForm({ ...form, [role]: { ...student, phone: e.target.value } })} placeholder="09xx xxx xxx" /></label>
+          <label>Số điện thoại<input required type="tel" inputMode="tel" pattern="[0-9 +.\x2d]{8,15}" value={student.phone} onChange={(e) => setForm({ ...form, [role]: { ...student, phone: e.target.value } })} placeholder="09xx xxx xxx" /></label>
         </fieldset>
         <label>Ghi chú <span className="optional">Không bắt buộc</span><textarea rows="2" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder="Tình trạng chìa khóa..." /></label>
         {error && <p className="form-error">{error}</p>}
-        <button className={`submit-button ${form.action === "NHẬN" ? "receive" : "deliver"}`} type="submit">Xác nhận {form.action === "NHẬN" ? "nhận" : "giao"} chìa <span>→</span></button>
+        <button className={`submit-button ${form.action === "NHẬN" ? "receive" : form.action === "MƯỢN" ? "borrow" : "deliver"}`} type="submit">Xác nhận {actionName(form.action)} chìa <span>→</span></button>
       </form>
     </section>
   </div>;
 }
 
-function RecordCard({ record, actions }) {
-  const student = record.action === "NHẬN" ? record.sender : record.receiver;
+function RecordCard({ record, roomStock, actions }) {
+  const student = actionStudent(record);
+  const tone = record.action === "NHẬN" ? "receive" : record.action === "MƯỢN" && record.returnedAt ? "returned" : record.action === "MƯỢN" ? "borrow" : "deliver";
   return <article className="record">
-    <div className={`record-icon ${record.action === "NHẬN" ? "receive" : "deliver"}`}>{record.action === "NHẬN" ? <ArrowDownToLine /> : <ArrowUpFromLine />}</div>
-    <div className="record-main"><div><strong>{record.building} · {record.room}</strong><span className={`pill ${record.action === "NHẬN" ? "receive" : "deliver"}`}>{record.action === "NHẬN" ? "Nhận từ SV" : "Giao cho SV"}</span><span className="quantity">{record.action === "NHẬN" ? "+" : "−"}{Number(record.quantity) || 1}</span></div><p>{student?.name || "Không có tên"} · {student?.studentId || "—"}</p><small>{new Date(record.createdAt).toLocaleString("vi-VN")} · {student?.phone || "—"}</small></div>
+    <div className={`record-icon ${tone}`}>{record.action === "NHẬN" || (record.action === "MƯỢN" && record.returnedAt) ? <ArrowDownToLine /> : record.action === "MƯỢN" ? <KeyRound /> : <ArrowUpFromLine />}</div>
+    <div className="record-main"><div><strong>{record.building} · {record.room}</strong><span className={`pill ${tone}`}>{actionStatus(record)}</span><span className="quantity">{Number(record.quantity) || 1} chìa</span></div><p>{student?.name || "Không có tên"} · {student?.studentId || "—"}</p><small>{new Date(record.createdAt).toLocaleString("vi-VN")} · {student?.phone || "—"}{record.returnedAt ? ` · Phòng ${record.building}-${record.room} hiện có ${roomStock} chìa tại quầy · Trả ${new Date(record.returnedAt).toLocaleString("vi-VN")}` : ""}</small></div>
     {actions && <div className="record-actions">{actions}</div>}
   </article>;
 }
@@ -185,31 +202,33 @@ function Admin({ records, setRecords }) {
 
   if (!loggedIn) return <AdminLogin onLogin={() => { sessionStorage.setItem("ktx-admin", "yes"); setLoggedIn(true); }} />;
   const filtered = records.filter((record) => {
-    const student = record.action === "NHẬN" ? record.sender : record.receiver;
+    const student = actionStudent(record);
     return `${record.building} ${record.room} ${student?.name} ${student?.studentId} ${student?.phone}`.toLowerCase().includes(query.toLowerCase());
   });
   const available = [...inventory.values()].reduce((sum, value) => sum + value, 0);
+  const borrowed = records.reduce((sum, record) => sum + (record.action === "MƯỢN" && !record.returnedAt ? Number(record.quantity) || 1 : 0), 0);
 
   function remove(id) { setRecords((old) => old.filter((item) => item.id !== id)); setConfirmAction(null); }
   function clearAll() { setRecords([]); setConfirmAction(null); }
-  function saveEdit(record) { setRecords((old) => old.map((item) => item.id === editing.id ? { ...record, id: item.id, createdAt: item.createdAt } : item)); setEditing(null); }
+  function saveEdit(record) { setRecords((old) => old.map((item) => item.id === editing.id ? { ...record, returnedAt: record.action === "MƯỢN" ? record.returnedAt : undefined, returnedQuantity: record.action === "MƯỢN" && record.returnedAt ? Number(record.quantity) || 1 : undefined, id: item.id, createdAt: item.createdAt } : item)); setEditing(null); }
   function add(record) { setRecords((old) => [{ ...record, id: crypto.randomUUID(), createdAt: new Date().toISOString() }, ...old]); setAdding(false); }
+  function returnBorrowed(id) { setRecords((old) => old.map((record) => record.id === id ? { ...record, returnedAt: new Date().toISOString(), returnedQuantity: Number(record.quantity) || 1 } : record)); }
 
   return <div className="admin-shell">
     <TopBar admin onMenu={() => setMenuOpen(true)} onLogout={() => { sessionStorage.removeItem("ktx-admin"); setLoggedIn(false); }} />
     <aside className={`admin-sidebar ${menuOpen ? "open" : ""}`}>
-      <div className="sidebar-brand"><span className="brand-mark">K</span><div><strong>KTX Key</strong><small>Admin workspace</small></div><button onClick={() => setMenuOpen(false)} aria-label="Đóng menu"><X /></button></div>
-      <nav><a className="active" href="#overview"><HomeIcon /> Tổng quan</a><a href="#records"><History /> Phiếu giao nhận</a><a href="/"><KeyRound /> Trang người dùng</a></nav>
+      <div className="sidebar-brand"><span className="brand-mark">CTU</span><div><strong>KTX B Đại Học Cần Thơ</strong><small>Hệ thống quản trị</small></div><button onClick={() => setMenuOpen(false)} aria-label="Đóng menu"><X /></button></div>
+      <nav><a className="active" href="#overview" onClick={() => setMenuOpen(false)}><HomeIcon /> Tổng quan</a><a href="#records" onClick={() => setMenuOpen(false)}><History /> Phiếu giao nhận</a><a href="/"><KeyRound /> Trang người dùng</a></nav>
       <div className="sidebar-account"><ShieldCheck /><div><strong>Quản trị viên</strong><small>admin</small></div></div>
     </aside>
     {menuOpen && <button className="sidebar-scrim" aria-label="Đóng menu" onClick={() => setMenuOpen(false)} />}
     <main className="admin-main" id="overview">
       <div className="admin-heading"><div><span className="eyebrow">TRANG QUẢN TRỊ</span><h2>Quản lý giao nhận</h2><p>Kiểm tra và điều chỉnh toàn bộ dữ liệu chìa khóa.</p></div><button className="add-button" onClick={() => setAdding(true)}><Plus /> Thêm phiếu</button></div>
-      <section className="admin-metrics"><Metric value={available} label="Chìa tại quầy" tone="green" icon={<KeyRound />} /><Metric value={records.length} label="Tổng phiếu" tone="blue" icon={<FileKey />} /><Metric value={new Set(records.map((r) => `${r.building}-${r.room}`)).size} label="Phòng có dữ liệu" tone="amber" icon={<Building2 />} /></section>
+      <section className="admin-metrics"><Metric value={available} label="Chìa tại quầy" tone="green" icon={<KeyRound />} /><Metric value={records.length} label="Tổng phiếu" tone="blue" icon={<FileKey />} /><Metric value={borrowed} label="Lượt mượn chìa" tone="purple" icon={<KeyRound />} /><Metric value={new Set(records.map((r) => `${r.building}-${r.room}`)).size} label="Phòng có dữ liệu" tone="amber" icon={<Building2 />} /></section>
       <section className="admin-panel" id="records">
         <div className="admin-panel-title"><div><h3>Phiếu giao nhận</h3><p>{filtered.length} kết quả trong hệ thống</p></div></div>
         <div className="admin-tools"><div className="search-field"><Search /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Tìm tên, MSSV, SĐT, phòng..." /></div><div><button onClick={() => exportExcel(records)}><Download /> Xuất Excel</button><button className="danger-outline" onClick={() => setConfirmAction({ type: "all" })}><Trash2 /> Xóa sạch</button></div></div>
-        <div className="admin-list">{filtered.length ? filtered.map((record) => <RecordCard key={record.id} record={record} actions={<><button onClick={() => setEditing(record)} aria-label="Sửa phiếu"><Pencil /> <span>Sửa</span></button><button className="delete" onClick={() => setConfirmAction({ type: "one", id: record.id })} aria-label="Xóa phiếu"><Trash2 /> <span>Xóa</span></button></>} />) : <Empty />}</div>
+        <div className="admin-list">{filtered.length ? filtered.map((record) => <RecordCard key={record.id} record={record} roomStock={inventory.get(`${record.building}-${record.room}`) || 0} actions={<>{record.action === "MƯỢN" && !record.returnedAt && <button className="return-borrowed" onClick={() => returnBorrowed(record.id)}><ArrowDownToLine /> <span>Trả chìa</span></button>}<button onClick={() => setEditing(record)} aria-label="Sửa phiếu"><Pencil /> <span>Sửa</span></button><button className="delete" onClick={() => setConfirmAction({ type: "one", id: record.id })} aria-label="Xóa phiếu"><Trash2 /> <span>Xóa</span></button></>} />) : <Empty />}</div>
       </section>
     </main>
     {(adding || editing) && <KeyModal action={editing?.action || "NHẬN"} initial={editing} inventory={inventory} onClose={() => { setAdding(false); setEditing(null); }} onSave={editing ? saveEdit : add} />}
@@ -226,7 +245,7 @@ function AdminLogin({ onLogin }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   function submit(event) { event.preventDefault(); if (username === "admin" && password === "admin") onLogin(); else setError("Tài khoản hoặc mật khẩu không đúng."); }
-  return <main className="login-page"><section className="login-card"><div className="login-logo">K</div><span className="eyebrow">KTX B · ĐẠI HỌC CẦN THƠ</span><h1>Đăng nhập quản trị</h1><p>Quản lý dữ liệu giao nhận chìa khóa</p><form onSubmit={submit}><label>Tài khoản<input autoFocus required value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Nhập tài khoản" /></label><label>Mật khẩu<input required type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Nhập mật khẩu" /></label>{error && <p className="form-error">{error}</p>}<button className="submit-button receive">Đăng nhập <span>→</span></button></form><a href="/">← Về trang giao nhận</a></section></main>;
+  return <main className="login-page"><section className="login-card"><div className="login-logo">CTU</div><span className="eyebrow">KTX B · ĐẠI HỌC CẦN THƠ</span><h1>Đăng nhập quản trị</h1><p>Hệ thống quản lý giao nhận chìa khóa sinh viên</p><form onSubmit={submit}><label>Tài khoản<input autoFocus required value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Nhập tài khoản" /></label><label>Mật khẩu<input required type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Nhập mật khẩu" /></label>{error && <p className="form-error">{error}</p>}<button className="submit-button receive">Đăng nhập <ArrowRight /></button></form><a href="/">← Về trang giao nhận</a></section></main>;
 }
 
 createRoot(document.getElementById("root")).render(<App />);

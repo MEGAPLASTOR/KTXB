@@ -3,7 +3,8 @@ export function calculateInventory(records) {
   [...records].reverse().forEach((record) => {
     const key = `${record.building}-${record.room}`;
     const quantity = Number(record.quantity) || 1;
-    inventory.set(key, Math.max(0, (inventory.get(key) || 0) + (record.action === "NHẬN" ? quantity : -quantity)));
+    const movement = record.action === "NHẬN" ? quantity : record.action === "MƯỢN" ? -(quantity - (Number(record.returnedQuantity) || 0)) : -quantity;
+    inventory.set(key, Math.max(0, (inventory.get(key) || 0) + movement));
   });
   return inventory;
 }
