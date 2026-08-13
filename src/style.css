@@ -71,6 +71,8 @@ header { height: 76px; padding: 0 max(24px, calc((100vw - 1120px) / 2)); display
 .search-field > svg { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: #81918d; z-index: 1; }
 .search-field input { padding-left: 38px; }
 .record { display: flex; gap: 13px; padding: 17px 20px; align-items: center; border-bottom: 1px solid #edf0ed; }
+.record.clickable { cursor: pointer; transition: background 150ms ease; }
+.record.clickable:hover, .record.clickable:focus-visible { background: #f4f9fc; outline: none; }
 .record:last-child { border: 0; }
 .record-icon { flex: 0 0 40px; height: 40px; display: grid; place-items: center; border-radius: 12px; font-size: 20px; }
 .record-icon.receive { color: #1f5ca9; background: #e1effb; }
@@ -164,6 +166,16 @@ legend { padding-right: 10px; color: #24483f; font: 700 13px Georgia, serif; }
 .record-actions .return-borrowed { color: #1f78a5; border-color: #58cbed55; background: #e9f9ff; }
 .record-actions { display: flex; gap: 6px; margin-left: 10px; }
 .confirm-backdrop { z-index: 40; }
+.detail-backdrop { z-index: 35; }
+.record-detail { width: min(560px, 100%); max-height: calc(100vh - 36px); overflow: auto; border: 1px solid var(--border); border-radius: 22px; background: var(--surface); box-shadow: var(--shadow-lg); }
+.detail-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 16px 20px 8px; }
+.detail-list button { min-width: 0; min-height: 66px; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; text-align: left; color: var(--text); background: var(--surface-soft); border: 1px solid var(--border); border-radius: 11px; }
+.detail-list button > span:first-child { min-width: 0; display: grid; gap: 3px; }
+.detail-list small { color: var(--muted); font-size: 11px; }
+.detail-list strong { overflow-wrap: anywhere; font-size: 14px; }
+.copy-state { flex: 0 0 auto; color: var(--primary); font-size: 11px; font-weight: 800; }
+.copy-state svg { width: 17px; height: 17px; }
+.copy-all { width: calc(100% - 40px); min-height: 48px; margin: 8px 20px 20px; display: flex; align-items: center; justify-content: center; gap: 8px; color: white; background: var(--primary); border: 0; border-radius: 11px; font-weight: 800; }
 .confirm-dialog { width: min(390px, calc(100% - 28px)); padding: 28px; text-align: center; border-radius: 20px; background: white; box-shadow: var(--shadow-lg); animation: dialog-in 180ms ease-out; }
 .confirm-dialog > span { width: 50px; height: 50px; margin: auto; display: grid; place-items: center; border-radius: 14px; color: var(--danger); background: #fff0ef; font-size: 22px; }
 .confirm-dialog h3 { margin: 15px 0 7px; font-size: 19px; }
@@ -216,6 +228,10 @@ legend { padding-right: 10px; color: #24483f; font: 700 13px Georgia, serif; }
   .record:has(.return-borrowed) .record-actions { grid-column: 1 / -1; width: 100%; margin: 2px 0 0; }
   .toast { left: 12px; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); text-align: center; }
   .modal-backdrop { padding: 0; place-items: end center; }
+  .record-detail { width: 100%; max-height: 92vh; border-radius: 24px 24px 0 0; padding-bottom: env(safe-area-inset-bottom); }
+  .detail-list { grid-template-columns: 1fr; padding: 12px 14px 6px; }
+  .detail-list button { min-height: 58px; }
+  .copy-all { width: calc(100% - 28px); margin: 8px 14px 14px; }
   .key-modal { width: 100%; max-height: 94vh; border-radius: 24px 24px 0 0; padding-bottom: env(safe-area-inset-bottom); }
   .modal-handle { display: block; width: 42px; height: 5px; border-radius: 5px; background: #d1d9d5; margin: 9px auto 0; }
   .modal-head { padding: 13px 15px; }
@@ -306,6 +322,11 @@ header { background: #061634d9; border-bottom-color: #43d8ff; backdrop-filter: b
 .record-icon.returned, .pill.returned { color: #6dffb3; background: #1dbb7228; }
 .metric.blue > span { color: #76bfff; background: #258fff24; }
 .section-title, .record, .modal-head, fieldset, .admin-tools { border-color: #65d9ff1c; }
+.record.clickable:hover, .record.clickable:focus-visible { background: #13305a99; }
+.record-detail { background: linear-gradient(145deg, #10264e, #091630); border-color: #64d9ff2e; }
+.detail-list button { color: #eaf8ff; background: #0d2349; border-color: #65d9ff28; }
+.copy-state { color: #71e5ff; }
+.copy-all { background: linear-gradient(135deg, #08b9dd, #1762c7); }
 .section-title > small, .empty > span, .stock-line, .form-mode, .close, .admin-tools button, .record-actions button { color: #b8d8ee; background: #15305a; border-color: #65d9ff28; }
 .record-actions .return-borrowed { color: #71e5ff; background: #0b3a5a; border-color: #55dfff55; }
 .user-filters { background: #071630bb; border-color: #65d9ff1c; }

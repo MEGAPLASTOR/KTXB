@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { ArrowDownToLine, ArrowRight, ArrowUpFromLine, Building2, Download, FileKey, History, Home as HomeIcon, KeyRound, LogOut, Menu, Pencil, Plus, Search, ShieldCheck, Trash2, X } from "lucide-react";
+import { ArrowDownToLine, ArrowRight, ArrowUpFromLine, Building2, Copy, Download, FileKey, History, Home as HomeIcon, KeyRound, LogOut, Menu, Pencil, Plus, Search, ShieldCheck, Trash2, X } from "lucide-react";
 import { calculateInventory } from "./inventory.js";
 import "./style.css";
 
@@ -58,6 +58,7 @@ function Home({ records, setRecords }) {
   const [query, setQuery] = useState("");
   const [building, setBuilding] = useState("Tất cả");
   const [room, setRoom] = useState("Tất cả");
+  const [detail, setDetail] = useState(null);
   const inventory = useMemo(() => calculateInventory(records), [records]);
   const available = [...inventory.values()].reduce((sum, value) => sum + value, 0);
   const delivered = records.reduce((sum, record) => sum + (record.action === "GIAO" ? Number(record.quantity) || 1 : 0), 0);
@@ -112,7 +113,7 @@ function Home({ records, setRecords }) {
           <select value={room} disabled={building === "Tất cả"} onChange={(e) => setRoom(e.target.value)} aria-label="Lọc theo phòng"><option value="Tất cả">{building === "Tất cả" ? "Chọn tòa trước" : "Tất cả phòng"}</option>{ROOMS.map((item) => <option key={item} value={item}>{item} · còn {inventory.get(`${building}-${item}`) || 0} chìa</option>)}</select>
         </div>
         {building !== "Tất cả" && room !== "Tất cả" && <div className="filter-stock"><KeyRound /><span>Phòng <strong>{building}-{room}</strong> hiện còn <strong>{inventory.get(`${building}-${room}`) || 0} chìa</strong> tại quầy</span></div>}
-        {filtered.length ? filtered.map((record) => <RecordCard key={record.id} record={record} roomStock={inventory.get(`${record.building}-${record.room}`) || 0} actions={record.action === "MƯỢN" && !record.returnedAt && <button className="return-borrowed" onClick={() => returnBorrowed(record.id)}><ArrowDownToLine /> Trả chìa đã mượn</button>} />) : <Empty />}
+        {filtered.length ? filtered.map((record) => <RecordCard key={record.id} record={record} roomStock={inventory.get(`${record.building}-${record.room}`) || 0} onOpen={() => setDetail(record)} actions={record.action === "MƯỢN" && !record.returnedAt && <button className="return-borrowed" onClick={() => returnBorrowed(record.id)}><ArrowDownToLine /> Trả chìa đã mượn</button>} />) : <Empty />}
       </section>
     </main>
     <footer>
@@ -120,6 +121,7 @@ function Home({ records, setRecords }) {
       <span>Có lỗi xảy ra, vui lòng liên hệ <a href="tel:0939358873">0939 358 873</a></span>
     </footer>
     {action && <KeyModal action={action} inventory={inventory} onClose={() => setAction(null)} onSave={save} />}
+    {detail && <RecordDetail record={detail} roomStock={inventory.get(`${detail.building}-${detail.room}`) || 0} onClose={() => setDetail(null)} />}
     {message && <div className="toast" role="status">✓ {message}</div>}
   </div>;
 }
@@ -179,14 +181,27 @@ function KeyModal({ action, inventory, initial, onClose, onSave }) {
   </div>;
 }
 
-function RecordCard({ record, roomStock, actions }) {
+function RecordCard({ record, roomStock, actions, onOpen }) {
   const student = actionStudent(record);
   const tone = record.action === "NHẬN" ? "receive" : record.action === "MƯỢN" && record.returnedAt ? "returned" : record.action === "MƯỢN" ? "borrow" : "deliver";
-  return <article className="record">
+  return <article className="record clickable" role="button" tabIndex="0" onClick={onOpen} onKeyDown={(event) => (event.key === "Enter" || event.key === " ") && onOpen()}>
     <div className={`record-icon ${tone}`}>{record.action === "NHẬN" || (record.action === "MƯỢN" && record.returnedAt) ? <ArrowDownToLine /> : record.action === "MƯỢN" ? <KeyRound /> : <ArrowUpFromLine />}</div>
     <div className="record-main"><div><strong>{record.building} · {record.room}</strong><span className={`pill ${tone}`}>{actionStatus(record)}</span><span className="quantity">{Number(record.quantity) || 1} chìa</span></div><p>{student?.name || "Không có tên"} · {student?.studentId || "—"}</p><small>{new Date(record.createdAt).toLocaleString("vi-VN")} · {student?.phone || "—"}{record.returnedAt ? ` · Phòng ${record.building}-${record.room} hiện có ${roomStock} chìa tại quầy · Trả ${new Date(record.returnedAt).toLocaleString("vi-VN")}` : ""}</small></div>
-    {actions && <div className="record-actions">{actions}</div>}
+    {actions && <div className="record-actions" onClick={(event) => event.stopPropagation()}>{actions}</div>}
   </article>;
+}
+
+function RecordDetail({ record, roomStock, onClose }) {
+  const [copied, setCopied] = useState("");
+  const student = actionStudent(record);
+  const rows = [
+    ["Trạng thái", actionStatus(record)], ["Tòa - Phòng", `${record.building}-${record.room}`], ["Số lượng", `${Number(record.quantity) || 1} chìa`],
+    ["Họ và tên", student?.name || "—"], ["MSSV", student?.studentId || "—"], ["Số điện thoại", student?.phone || "—"],
+    ["Chìa tại quầy", `${roomStock} chìa`], ["Thời gian", new Date(record.createdAt).toLocaleString("vi-VN")], ["Ghi chú", record.note || "—"],
+  ];
+  async function copy(label, value) { await navigator.clipboard.writeText(value); setCopied(label); setTimeout(() => setCopied(""), 1400); }
+  const all = rows.map(([label, value]) => `${label}: ${value}`).join("\n");
+  return <div className="modal-backdrop detail-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section className="record-detail" role="dialog" aria-modal="true" aria-label="Chi tiết phiếu"><div className="modal-head"><div><small>CHI TIẾT PHIẾU</small><h3>{record.building}-{record.room} · {actionStatus(record)}</h3></div><button className="close" onClick={onClose} aria-label="Đóng"><X /></button></div><div className="detail-list">{rows.map(([label, value]) => <button key={label} onClick={() => copy(label, value)}><span><small>{label}</small><strong>{value}</strong></span><span className="copy-state">{copied === label ? "Đã chép" : <Copy />}</span></button>)}</div><button className="copy-all" onClick={() => copy("all", all)}><Copy /> {copied === "all" ? "Đã sao chép tất cả" : "Sao chép tất cả"}</button></section></div>;
 }
 
 function Empty() { return <div className="empty"><span><FileKey /></span><h4>Chưa có phiếu giao nhận</h4><p>Hoạt động mới sẽ xuất hiện tại đây.</p></div>; }
@@ -198,6 +213,7 @@ function Admin({ records, setRecords }) {
   const [query, setQuery] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
+  const [detail, setDetail] = useState(null);
   const inventory = useMemo(() => calculateInventory(records), [records]);
 
   if (!loggedIn) return <AdminLogin onLogin={() => { sessionStorage.setItem("ktx-admin", "yes"); setLoggedIn(true); }} />;
@@ -228,10 +244,11 @@ function Admin({ records, setRecords }) {
       <section className="admin-panel" id="records">
         <div className="admin-panel-title"><div><h3>Phiếu giao nhận</h3><p>{filtered.length} kết quả trong hệ thống</p></div></div>
         <div className="admin-tools"><div className="search-field"><Search /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Tìm tên, MSSV, SĐT, phòng..." /></div><div><button onClick={() => exportExcel(records)}><Download /> Xuất Excel</button><button className="danger-outline" onClick={() => setConfirmAction({ type: "all" })}><Trash2 /> Xóa sạch</button></div></div>
-        <div className="admin-list">{filtered.length ? filtered.map((record) => <RecordCard key={record.id} record={record} roomStock={inventory.get(`${record.building}-${record.room}`) || 0} actions={<>{record.action === "MƯỢN" && !record.returnedAt && <button className="return-borrowed" onClick={() => returnBorrowed(record.id)}><ArrowDownToLine /> <span>Trả chìa</span></button>}<button onClick={() => setEditing(record)} aria-label="Sửa phiếu"><Pencil /> <span>Sửa</span></button><button className="delete" onClick={() => setConfirmAction({ type: "one", id: record.id })} aria-label="Xóa phiếu"><Trash2 /> <span>Xóa</span></button></>} />) : <Empty />}</div>
+        <div className="admin-list">{filtered.length ? filtered.map((record) => <RecordCard key={record.id} record={record} roomStock={inventory.get(`${record.building}-${record.room}`) || 0} onOpen={() => setDetail(record)} actions={<>{record.action === "MƯỢN" && !record.returnedAt && <button className="return-borrowed" onClick={() => returnBorrowed(record.id)}><ArrowDownToLine /> <span>Trả chìa</span></button>}<button onClick={() => setEditing(record)} aria-label="Sửa phiếu"><Pencil /> <span>Sửa</span></button><button className="delete" onClick={() => setConfirmAction({ type: "one", id: record.id })} aria-label="Xóa phiếu"><Trash2 /> <span>Xóa</span></button></>} />) : <Empty />}</div>
       </section>
     </main>
     {(adding || editing) && <KeyModal action={editing?.action || "NHẬN"} initial={editing} inventory={inventory} onClose={() => { setAdding(false); setEditing(null); }} onSave={editing ? saveEdit : add} />}
+    {detail && <RecordDetail record={detail} roomStock={inventory.get(`${detail.building}-${detail.room}`) || 0} onClose={() => setDetail(null)} />}
     {confirmAction && <ConfirmDialog all={confirmAction.type === "all"} onCancel={() => setConfirmAction(null)} onConfirm={() => confirmAction.type === "all" ? clearAll() : remove(confirmAction.id)} />}
   </div>;
 }
