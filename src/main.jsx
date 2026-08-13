@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { ArrowDownToLine, ArrowRight, ArrowUpFromLine, Building2, Copy, Download, FileKey, History, Home as HomeIcon, KeyRound, LogOut, Menu, Pencil, Plus, Search, ShieldCheck, Trash2, X } from "lucide-react";
 import { calculateInventory } from "./inventory.js";
 import { firebaseConfigured, saveRecords, subscribeRecords } from "./firebase.js";
+import ctuLogo from "./assets/ctu-logo.png";
 import "./style.css";
 
 const BUILDINGS = Array.from({ length: 8 }, (_, i) => `B${i + 1}`);
@@ -41,6 +42,7 @@ function App() {
   const [records, setRecordState] = useState([]);
   const [syncStatus, setSyncStatus] = useState("loading");
   const [connectionKey, setConnectionKey] = useState(0);
+  const [minimumWaitDone, setMinimumWaitDone] = useState(false);
   useEffect(() => {
     let unsubscribe;
     setSyncStatus("loading");
@@ -49,6 +51,7 @@ function App() {
       .catch(() => setSyncStatus("error"));
     return () => unsubscribe?.();
   }, [connectionKey]);
+  useEffect(() => { const timer = setTimeout(() => setMinimumWaitDone(true), 3000); return () => clearTimeout(timer); }, []);
   function setRecords(update) {
     setRecordState((old) => {
       const next = typeof update === "function" ? update(old) : update;
@@ -56,14 +59,14 @@ function App() {
       return next;
     });
   }
-  if (syncStatus !== "ready") return <LoadingScreen error={syncStatus === "error" || !firebaseConfigured} onRetry={() => setConnectionKey((key) => key + 1)} />;
+  if (syncStatus !== "ready" || !minimumWaitDone) return <LoadingScreen error={minimumWaitDone && (syncStatus === "error" || !firebaseConfigured)} onRetry={() => setConnectionKey((key) => key + 1)} />;
   return <>{location.pathname.toLowerCase() === "/ktxmyadmin"
     ? <Admin records={records} setRecords={setRecords} />
     : <Home records={records} setRecords={setRecords} />}</>;
 }
 
 function LoadingScreen({ error, onRetry }) {
-  return <main className="loading-screen"><div className="loading-stars" /><section className={`loading-card ${error ? "error" : ""}`} role="status" aria-live="polite"><div className="loading-logo">CTU<span className="loading-ring" /></div>{error ? <><span className="loading-eyebrow">CHƯA THỂ ĐỒNG BỘ</span><h1>Không thể tải dữ liệu</h1><p>Vui lòng kiểm tra mạng hoặc bật Anonymous Authentication trong Firebase.</p><button onClick={onRetry}>Thử lại <ArrowRight /></button></> : <><span className="loading-eyebrow">KTX B · ĐẠI HỌC CẦN THƠ</span><h1>Đang tải dữ liệu</h1><p>Đang đồng bộ chìa khóa và phiếu giao nhận...</p><div className="loading-dots"><i /><i /><i /></div></>}</section></main>;
+  return <main className="loading-screen"><div className="loading-stars" /><section className={`loading-card ${error ? "error" : ""}`} role="status" aria-live="polite"><div className="loading-logo"><img src={ctuLogo} alt="Logo Đại học Cần Thơ" /><span className="loading-ring" /></div>{error ? <><span className="loading-eyebrow">CHƯA THỂ ĐỒNG BỘ</span><h1>Không thể tải dữ liệu</h1><p>Vui lòng kiểm tra mạng hoặc bật Anonymous Authentication trong Firebase.</p><button onClick={onRetry}>Thử lại <ArrowRight /></button></> : <><span className="loading-eyebrow">KTX B · ĐẠI HỌC CẦN THƠ</span><h1>Đang tải dữ liệu</h1><p>Đang đồng bộ chìa khóa và phiếu giao nhận...</p><div className="loading-dots"><i /><i /><i /></div></>}</section></main>;
 }
 
 function Home({ records, setRecords }) {
