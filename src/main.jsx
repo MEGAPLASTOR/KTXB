@@ -51,9 +51,16 @@ function App() {
 function Home({ records, setRecords }) {
   const [action, setAction] = useState(null);
   const [message, setMessage] = useState("");
+  const [query, setQuery] = useState("");
+  const [building, setBuilding] = useState("Tất cả");
   const inventory = useMemo(() => calculateInventory(records), [records]);
   const available = [...inventory.values()].reduce((sum, value) => sum + value, 0);
   const delivered = records.reduce((sum, record) => sum + (record.action === "GIAO" ? Number(record.quantity) || 1 : 0), 0);
+  const filtered = useMemo(() => records.filter((record) => {
+    const student = record.action === "NHẬN" ? record.sender : record.receiver;
+    const text = `${record.building} ${record.room} ${student?.name || ""} ${student?.studentId || ""} ${student?.phone || ""}`.toLowerCase();
+    return (building === "Tất cả" || record.building === building) && text.includes(query.trim().toLowerCase());
+  }), [records, query, building]);
 
   function save(record) {
     setRecords((old) => [{ ...record, id: crypto.randomUUID(), createdAt: new Date().toISOString() }, ...old]);
@@ -87,8 +94,12 @@ function Home({ records, setRecords }) {
       </section>
 
       <section className="recent-card">
-        <div className="section-title"><div><span>HOẠT ĐỘNG MỚI</span><h3>Lịch sử gần đây</h3></div><small>{records.length} phiếu</small></div>
-        {records.length ? records.slice(0, 5).map((record) => <RecordCard key={record.id} record={record} />) : <Empty />}
+        <div className="section-title"><div><span>HOẠT ĐỘNG MỚI</span><h3>Lịch sử giao nhận</h3></div><small>{filtered.length} phiếu</small></div>
+        <div className="user-filters">
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Tìm tên, MSSV, SĐT, phòng..." aria-label="Tìm phiếu giao nhận" />
+          <select value={building} onChange={(e) => setBuilding(e.target.value)} aria-label="Lọc theo tòa"><option>Tất cả</option>{BUILDINGS.map((item) => <option key={item}>{item}</option>)}</select>
+        </div>
+        {filtered.length ? filtered.map((record) => <RecordCard key={record.id} record={record} />) : <Empty />}
       </section>
     </main>
     <footer>Dữ liệu lưu trên thiết bị này · KTX B Đại học Cần Thơ</footer>
