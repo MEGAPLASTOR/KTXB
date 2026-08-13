@@ -10,9 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "vite": "latest",
+    "lucide-react": "^1.31.0",
     "react": "latest",
-    "react-dom": "latest"
-  },
-  "devDependencies": {}
+    "react-dom": "latest",
+    "vite": "latest"
+  }
 }

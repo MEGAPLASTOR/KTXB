@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { ArrowDownToLine, ArrowRight, ArrowUpFromLine, Building2, Download, FileKey, History, Home as HomeIcon, KeyRound, LogOut, Menu, Pencil, Plus, Search, ShieldCheck, Trash2, X } from "lucide-react";
 import { calculateInventory } from "./inventory.js";
 import "./style.css";
 
@@ -80,23 +81,23 @@ function Home({ records, setRecords }) {
 
       <section className="quick-actions" aria-label="Thao tác giao nhận">
         <button className="action-card receive" onClick={() => setAction("NHẬN")}>
-          <span className="action-icon">↓</span><span><small>SINH VIÊN TRẢ CHÌA</small><strong>Nhận chìa</strong><em>Cộng chìa vào quầy</em></span><b>›</b>
+          <span className="action-icon"><ArrowDownToLine /></span><span><small>SINH VIÊN TRẢ CHÌA</small><strong>Nhận chìa</strong><em>Cộng chìa vào quầy</em></span><ArrowRight className="action-arrow" />
         </button>
         <button className="action-card deliver" onClick={() => setAction("GIAO")} disabled={!available}>
-          <span className="action-icon">↑</span><span><small>TRẢ CHÌA CHO SINH VIÊN</small><strong>Giao chìa</strong><em>{available ? "Trừ chìa khỏi quầy" : "Hiện chưa có chìa để giao"}</em></span><b>›</b>
+          <span className="action-icon"><ArrowUpFromLine /></span><span><small>TRẢ CHÌA CHO SINH VIÊN</small><strong>Giao chìa</strong><em>{available ? "Trừ chìa khỏi quầy" : "Hiện chưa có chìa để giao"}</em></span><ArrowRight className="action-arrow" />
         </button>
       </section>
 
       <section className="metric-grid">
-        <Metric icon="⌄" value={available} label="Chìa đang nhận" tone="green" />
-        <Metric icon="⌃" value={delivered} label="Chìa đã giao" tone="amber" />
-        <Metric icon="◇" value={available + delivered} label="Tổng số chìa" tone="blue" />
+        <Metric icon={<ArrowDownToLine />} value={available} label="Chìa đang nhận" tone="green" />
+        <Metric icon={<ArrowUpFromLine />} value={delivered} label="Chìa đã giao" tone="amber" />
+        <Metric icon={<KeyRound />} value={available + delivered} label="Tổng số chìa" tone="blue" />
       </section>
 
       <section className="recent-card">
         <div className="section-title"><div><span>HOẠT ĐỘNG MỚI</span><h3>Lịch sử giao nhận</h3></div><small>{filtered.length} phiếu</small></div>
         <div className="user-filters">
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Tìm tên, MSSV, SĐT, phòng..." aria-label="Tìm phiếu giao nhận" />
+          <div className="search-field"><Search /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Tìm tên, MSSV, SĐT, phòng..." aria-label="Tìm phiếu giao nhận" /></div>
           <select value={building} onChange={(e) => setBuilding(e.target.value)} aria-label="Lọc theo tòa"><option>Tất cả</option>{BUILDINGS.map((item) => <option key={item}>{item}</option>)}</select>
         </div>
         {filtered.length ? filtered.map((record) => <RecordCard key={record.id} record={record} />) : <Empty />}
@@ -108,10 +109,10 @@ function Home({ records, setRecords }) {
   </div>;
 }
 
-function TopBar({ admin = false, onLogout }) {
+function TopBar({ admin = false, onLogout, onMenu }) {
   return <header>
     <a className="brand" href="/" aria-label="Trang chủ"><span className="brand-mark">K</span><span><strong>{admin ? "Quản trị chìa khóa" : "Giao nhận chìa khóa"}</strong><small>KTX B · Đại học Cần Thơ</small></span></a>
-    {admin && <button className="header-button" onClick={onLogout}>Đăng xuất</button>}
+    {admin && <div className="top-actions"><button className="menu-button" onClick={onMenu} aria-label="Mở menu"><Menu /></button><button className="header-button" onClick={onLogout}><LogOut /> Đăng xuất</button></div>}
   </header>;
 }
 
@@ -136,7 +137,7 @@ function KeyModal({ action, inventory, initial, onClose, onSave }) {
   return <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
     <section className="key-modal" role="dialog" aria-modal="true" aria-label={`Phiếu ${action === "NHẬN" ? "nhận" : "giao"} chìa`}>
       <div className="modal-handle" />
-      <div className="modal-head"><div className={`modal-icon ${form.action === "NHẬN" ? "receive" : "deliver"}`}>{form.action === "NHẬN" ? "↓" : "↑"}</div><div><small>PHIẾU GIAO NHẬN</small><h3>{form.action === "NHẬN" ? "Nhận chìa từ sinh viên" : "Giao chìa cho sinh viên"}</h3></div><button className="close" type="button" onClick={onClose}>×</button></div>
+      <div className="modal-head"><div className={`modal-icon ${form.action === "NHẬN" ? "receive" : "deliver"}`}>{form.action === "NHẬN" ? <ArrowDownToLine /> : <ArrowUpFromLine />}</div><div><small>PHIẾU GIAO NHẬN</small><h3>{form.action === "NHẬN" ? "Nhận chìa từ sinh viên" : "Giao chìa cho sinh viên"}</h3></div><button className="close" type="button" onClick={onClose} aria-label="Đóng"><X /></button></div>
       <form onSubmit={submit}>
         <div className="form-mode">
           <button type="button" className={form.action === "NHẬN" ? "active receive" : ""} onClick={() => setForm({ ...form, action: "NHẬN", sender: student })}>Nhận chìa</button>
@@ -165,19 +166,21 @@ function KeyModal({ action, inventory, initial, onClose, onSave }) {
 function RecordCard({ record, actions }) {
   const student = record.action === "NHẬN" ? record.sender : record.receiver;
   return <article className="record">
-    <div className={`record-icon ${record.action === "NHẬN" ? "receive" : "deliver"}`}>{record.action === "NHẬN" ? "↓" : "↑"}</div>
+    <div className={`record-icon ${record.action === "NHẬN" ? "receive" : "deliver"}`}>{record.action === "NHẬN" ? <ArrowDownToLine /> : <ArrowUpFromLine />}</div>
     <div className="record-main"><div><strong>{record.building} · {record.room}</strong><span className={`pill ${record.action === "NHẬN" ? "receive" : "deliver"}`}>{record.action === "NHẬN" ? "Nhận từ SV" : "Giao cho SV"}</span><span className="quantity">{record.action === "NHẬN" ? "+" : "−"}{Number(record.quantity) || 1}</span></div><p>{student?.name || "Không có tên"} · {student?.studentId || "—"}</p><small>{new Date(record.createdAt).toLocaleString("vi-VN")} · {student?.phone || "—"}</small></div>
     {actions && <div className="record-actions">{actions}</div>}
   </article>;
 }
 
-function Empty() { return <div className="empty"><span>⌁</span><h4>Chưa có phiếu giao nhận</h4><p>Hoạt động mới sẽ xuất hiện tại đây.</p></div>; }
+function Empty() { return <div className="empty"><span><FileKey /></span><h4>Chưa có phiếu giao nhận</h4><p>Hoạt động mới sẽ xuất hiện tại đây.</p></div>; }
 
 function Admin({ records, setRecords }) {
   const [loggedIn, setLoggedIn] = useState(sessionStorage.getItem("ktx-admin") === "yes");
   const [editing, setEditing] = useState(null);
   const [adding, setAdding] = useState(false);
   const [query, setQuery] = useState("");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
   const inventory = useMemo(() => calculateInventory(records), [records]);
 
   if (!loggedIn) return <AdminLogin onLogin={() => { sessionStorage.setItem("ktx-admin", "yes"); setLoggedIn(true); }} />;
@@ -187,23 +190,35 @@ function Admin({ records, setRecords }) {
   });
   const available = [...inventory.values()].reduce((sum, value) => sum + value, 0);
 
-  function remove(id) { if (confirm("Xóa phiếu này?")) setRecords((old) => old.filter((item) => item.id !== id)); }
-  function clearAll() { if (confirm("Xóa sạch toàn bộ dữ liệu giao nhận? Thao tác này không thể hoàn tác.")) setRecords([]); }
+  function remove(id) { setRecords((old) => old.filter((item) => item.id !== id)); setConfirmAction(null); }
+  function clearAll() { setRecords([]); setConfirmAction(null); }
   function saveEdit(record) { setRecords((old) => old.map((item) => item.id === editing.id ? { ...record, id: item.id, createdAt: item.createdAt } : item)); setEditing(null); }
   function add(record) { setRecords((old) => [{ ...record, id: crypto.randomUUID(), createdAt: new Date().toISOString() }, ...old]); setAdding(false); }
 
   return <div className="admin-shell">
-    <TopBar admin onLogout={() => { sessionStorage.removeItem("ktx-admin"); setLoggedIn(false); }} />
-    <main className="admin-main">
-      <div className="admin-heading"><div><span className="eyebrow">TRANG QUẢN TRỊ</span><h2>Quản lý giao nhận</h2><p>Kiểm tra và điều chỉnh toàn bộ dữ liệu chìa khóa.</p></div><button className="add-button" onClick={() => setAdding(true)}>＋ Thêm phiếu</button></div>
-      <section className="admin-metrics"><Metric value={available} label="Chìa tại quầy" tone="green" icon="⌄" /><Metric value={records.length} label="Tổng phiếu" tone="blue" icon="◇" /><Metric value={new Set(records.map((r) => `${r.building}-${r.room}`)).size} label="Phòng có dữ liệu" tone="amber" icon="⌂" /></section>
-      <section className="admin-panel">
-        <div className="admin-tools"><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Tìm tên, MSSV, SĐT, phòng..." /><div><button onClick={() => exportExcel(records)}>Xuất Excel</button><button className="danger-outline" onClick={clearAll}>Xóa sạch dữ liệu</button></div></div>
-        <div className="admin-list">{filtered.length ? filtered.map((record) => <RecordCard key={record.id} record={record} actions={<><button onClick={() => setEditing(record)}>Sửa</button><button className="delete" onClick={() => remove(record.id)}>Xóa</button></>} />) : <Empty />}</div>
+    <TopBar admin onMenu={() => setMenuOpen(true)} onLogout={() => { sessionStorage.removeItem("ktx-admin"); setLoggedIn(false); }} />
+    <aside className={`admin-sidebar ${menuOpen ? "open" : ""}`}>
+      <div className="sidebar-brand"><span className="brand-mark">K</span><div><strong>KTX Key</strong><small>Admin workspace</small></div><button onClick={() => setMenuOpen(false)} aria-label="Đóng menu"><X /></button></div>
+      <nav><a className="active" href="#overview"><HomeIcon /> Tổng quan</a><a href="#records"><History /> Phiếu giao nhận</a><a href="/"><KeyRound /> Trang người dùng</a></nav>
+      <div className="sidebar-account"><ShieldCheck /><div><strong>Quản trị viên</strong><small>admin</small></div></div>
+    </aside>
+    {menuOpen && <button className="sidebar-scrim" aria-label="Đóng menu" onClick={() => setMenuOpen(false)} />}
+    <main className="admin-main" id="overview">
+      <div className="admin-heading"><div><span className="eyebrow">TRANG QUẢN TRỊ</span><h2>Quản lý giao nhận</h2><p>Kiểm tra và điều chỉnh toàn bộ dữ liệu chìa khóa.</p></div><button className="add-button" onClick={() => setAdding(true)}><Plus /> Thêm phiếu</button></div>
+      <section className="admin-metrics"><Metric value={available} label="Chìa tại quầy" tone="green" icon={<KeyRound />} /><Metric value={records.length} label="Tổng phiếu" tone="blue" icon={<FileKey />} /><Metric value={new Set(records.map((r) => `${r.building}-${r.room}`)).size} label="Phòng có dữ liệu" tone="amber" icon={<Building2 />} /></section>
+      <section className="admin-panel" id="records">
+        <div className="admin-panel-title"><div><h3>Phiếu giao nhận</h3><p>{filtered.length} kết quả trong hệ thống</p></div></div>
+        <div className="admin-tools"><div className="search-field"><Search /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Tìm tên, MSSV, SĐT, phòng..." /></div><div><button onClick={() => exportExcel(records)}><Download /> Xuất Excel</button><button className="danger-outline" onClick={() => setConfirmAction({ type: "all" })}><Trash2 /> Xóa sạch</button></div></div>
+        <div className="admin-list">{filtered.length ? filtered.map((record) => <RecordCard key={record.id} record={record} actions={<><button onClick={() => setEditing(record)} aria-label="Sửa phiếu"><Pencil /> <span>Sửa</span></button><button className="delete" onClick={() => setConfirmAction({ type: "one", id: record.id })} aria-label="Xóa phiếu"><Trash2 /> <span>Xóa</span></button></>} />) : <Empty />}</div>
       </section>
     </main>
     {(adding || editing) && <KeyModal action={editing?.action || "NHẬN"} initial={editing} inventory={inventory} onClose={() => { setAdding(false); setEditing(null); }} onSave={editing ? saveEdit : add} />}
+    {confirmAction && <ConfirmDialog all={confirmAction.type === "all"} onCancel={() => setConfirmAction(null)} onConfirm={() => confirmAction.type === "all" ? clearAll() : remove(confirmAction.id)} />}
   </div>;
+}
+
+function ConfirmDialog({ all, onCancel, onConfirm }) {
+  return <div className="modal-backdrop confirm-backdrop"><section className="confirm-dialog" role="alertdialog" aria-modal="true"><span><Trash2 /></span><h3>{all ? "Xóa sạch dữ liệu?" : "Xóa phiếu này?"}</h3><p>{all ? "Toàn bộ lịch sử và số lượng chìa sẽ bị xóa vĩnh viễn." : "Phiếu giao nhận này sẽ bị xóa và tồn kho được tính lại."}</p><div><button onClick={onCancel}>Hủy</button><button className="danger-button" onClick={onConfirm}>Xác nhận xóa</button></div></section></div>;
 }
 
 function AdminLogin({ onLogin }) {
