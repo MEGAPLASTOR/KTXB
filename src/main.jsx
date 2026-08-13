@@ -2,13 +2,13 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { ArrowDownToLine, ArrowRight, ArrowUpFromLine, Building2, Copy, Download, FileKey, History, Home as HomeIcon, KeyRound, LogOut, Menu, Pencil, Plus, Search, ShieldCheck, Trash2, X } from "lucide-react";
 import { calculateInventory } from "./inventory.js";
+import { firebaseConfigured, saveRecords, subscribeRecords } from "./firebase.js";
 import "./style.css";
 
 const BUILDINGS = Array.from({ length: 8 }, (_, i) => `B${i + 1}`);
 const ROOMS = Array.from({ length: 5 }, (_, floor) =>
   Array.from({ length: 16 }, (_, room) => `${floor + 1}${String(room + 1).padStart(2, "0")}`)
 ).flat();
-const STORAGE_KEY = "ktx-key-records-v3";
 const emptyPerson = { name: "", studentId: "", phone: "" };
 const actionName = (action) => action === "NHẬN" ? "nhận" : action === "MƯỢN" ? "mượn" : "giao";
 const actionStudent = (record) => record.action === "NHẬN" ? record.sender : record.receiver;
@@ -16,13 +16,6 @@ const actionStatus = (record) => record.action === "NHẬN" ? "Đã nhận" : re
 
 function newForm(action = "NHẬN") {
   return { building: "B1", room: "101", action, quantity: 1, sender: { ...emptyPerson }, receiver: { ...emptyPerson }, note: "" };
-}
-
-function readRecords() {
-  try {
-    const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-    return Array.isArray(data) ? data : [];
-  } catch { return []; }
 }
 
 function exportExcel(records) {
@@ -45,11 +38,25 @@ function exportExcel(records) {
 }
 
 function App() {
-  const [records, setRecords] = useState(readRecords);
-  useEffect(() => localStorage.setItem(STORAGE_KEY, JSON.stringify(records)), [records]);
-  return location.pathname.toLowerCase() === "/ktxmyadmin"
+  const [records, setRecordState] = useState([]);
+  const [syncStatus, setSyncStatus] = useState(firebaseConfigured ? "Đang kết nối Firebase..." : "Chưa cấu hình Firebase");
+  useEffect(() => {
+    let unsubscribe;
+    subscribeRecords((items) => { setRecordState(items); setSyncStatus(""); }, () => setSyncStatus("Không thể đồng bộ Firebase"))
+      .then((stop) => { unsubscribe = stop; })
+      .catch(() => setSyncStatus("Không thể kết nối Firebase"));
+    return () => unsubscribe?.();
+  }, []);
+  function setRecords(update) {
+    setRecordState((old) => {
+      const next = typeof update === "function" ? update(old) : update;
+      saveRecords(next).catch(() => setSyncStatus("Không thể lưu lên Firebase"));
+      return next;
+    });
+  }
+  return <>{syncStatus && <div className="sync-banner" role="status">{syncStatus}</div>}{location.pathname.toLowerCase() === "/ktxmyadmin"
     ? <Admin records={records} setRecords={setRecords} />
-    : <Home records={records} setRecords={setRecords} />;
+    : <Home records={records} setRecords={setRecords} />}</>;
 }
 
 function Home({ records, setRecords }) {
