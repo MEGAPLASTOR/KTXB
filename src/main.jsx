@@ -39,24 +39,31 @@ function exportExcel(records) {
 
 function App() {
   const [records, setRecordState] = useState([]);
-  const [syncStatus, setSyncStatus] = useState(firebaseConfigured ? "Đang kết nối Firebase..." : "Chưa cấu hình Firebase");
+  const [syncStatus, setSyncStatus] = useState("loading");
+  const [connectionKey, setConnectionKey] = useState(0);
   useEffect(() => {
     let unsubscribe;
-    subscribeRecords((items) => { setRecordState(items); setSyncStatus(""); }, () => setSyncStatus("Không thể đồng bộ Firebase"))
+    setSyncStatus("loading");
+    subscribeRecords((items) => { setRecordState(items); setSyncStatus("ready"); }, () => setSyncStatus("error"))
       .then((stop) => { unsubscribe = stop; })
-      .catch(() => setSyncStatus("Không thể kết nối Firebase"));
+      .catch(() => setSyncStatus("error"));
     return () => unsubscribe?.();
-  }, []);
+  }, [connectionKey]);
   function setRecords(update) {
     setRecordState((old) => {
       const next = typeof update === "function" ? update(old) : update;
-      saveRecords(next).catch(() => setSyncStatus("Không thể lưu lên Firebase"));
+      saveRecords(next).catch(() => setSyncStatus("error"));
       return next;
     });
   }
-  return <>{syncStatus && <div className="sync-banner" role="status">{syncStatus}</div>}{location.pathname.toLowerCase() === "/ktxmyadmin"
+  if (syncStatus !== "ready") return <LoadingScreen error={syncStatus === "error" || !firebaseConfigured} onRetry={() => setConnectionKey((key) => key + 1)} />;
+  return <>{location.pathname.toLowerCase() === "/ktxmyadmin"
     ? <Admin records={records} setRecords={setRecords} />
     : <Home records={records} setRecords={setRecords} />}</>;
+}
+
+function LoadingScreen({ error, onRetry }) {
+  return <main className="loading-screen"><div className="loading-stars" /><section className={`loading-card ${error ? "error" : ""}`} role="status" aria-live="polite"><div className="loading-logo">CTU<span className="loading-ring" /></div>{error ? <><span className="loading-eyebrow">CHƯA THỂ ĐỒNG BỘ</span><h1>Không thể tải dữ liệu</h1><p>Vui lòng kiểm tra mạng hoặc bật Anonymous Authentication trong Firebase.</p><button onClick={onRetry}>Thử lại <ArrowRight /></button></> : <><span className="loading-eyebrow">KTX B · ĐẠI HỌC CẦN THƠ</span><h1>Đang tải dữ liệu</h1><p>Đang đồng bộ chìa khóa và phiếu giao nhận...</p><div className="loading-dots"><i /><i /><i /></div></>}</section></main>;
 }
 
 function Home({ records, setRecords }) {
